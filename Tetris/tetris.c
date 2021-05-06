@@ -74,6 +74,10 @@ void DrawOutline() {
 int GetCommand() {
 	int command;
 	command = wgetch(stdscr);
+
+	// RecMode일 때는 Quit만 가능
+	if (Recplay && command != QUIT) return KEY_DOWN;
+
 	switch (command) {
 	case KEY_UP:
 		break;
@@ -152,15 +156,13 @@ void DrawNextBlock(int* nextBlock) {
 	int i, j;
 
 	// 블럭 위치를 추천
-	if(check_recommend){
-		if(root) free(root);
-		root = (Node*) malloc(sizeof(Node));
-		root->level = 0;
-		for(int i = 0; i < HEIGHT; i++)
-			for(int j = 0; j < WIDTH; j++)
-				root->recField[i][j] = field[i][j];
-		recommend(root);
-	}
+	if(root) free(root);
+	root = (Node*) malloc(sizeof(Node));
+	root->level = 0;
+	for(int i = 0; i < HEIGHT; i++)
+		for(int j = 0; j < WIDTH; j++)
+			root->recField[i][j] = field[i][j];
+	recommend(root);
 
 	for (i = 0; i < 4; i++) {
 		// 다음 블럭 그리기
@@ -322,12 +324,19 @@ void BlockDown(int sig) {
 	// user code
 	//강의자료 p26-27의 플로우차트를 참고한다.
 
-	if (CheckToMove(field, nextBlock[0], blockRotate, blockY + 1, blockX)) {
+	// recommend play
+	if (Recplay) {
+        blockY = root->recBlockY;
+        blockX = root->recBlockX;
+        blockRotate = root->recBlockRotate;
+    }
+	else{
+		if (CheckToMove(field, nextBlock[0], blockRotate, blockY + 1, blockX)) {
 		blockY++;
 		DrawChange(field, KEY_DOWN, nextBlock[0], blockRotate, blockY, blockX);
 		timed_out = 0; return;
+		}
 	}
-
 	//gameOver = 1; return;
 
 
@@ -338,7 +347,7 @@ void BlockDown(int sig) {
 	}
 
 	// 블록을 field에 합치고 점수를 갱신한다. 
-	score += AddBlockToField(field, nextBlock[0], blockRotate, blockY, blockX);
+	score += AddBlockToField(field, nextBlock[0], blockRotate, blockY, blockX, 0);
 
 	// 완전히 채워진 line을 지우고 score를 업데이트 한다. 
 	score += DeleteLine(field);
@@ -364,25 +373,38 @@ void BlockDown(int sig) {
 	timed_out = 0;
 }
 
-int AddBlockToField(char f[HEIGHT][WIDTH], int currentBlock, int blockRotate, int blockY, int blockX) {
+int AddBlockToField(char f[HEIGHT][WIDTH], int currentBlock, int blockRotate, int blockY, int blockX, int flag) {
 	// user code
 	int y, x;
 
 	//현재 블록과 필드가 맞닿아 있는 필드의 면적을 count
-	int touched = 0;
+	int touched = 0, penalty;
 
 	//Block이 추가된 영역의 필드값을 바꾼다.
-	for (int i = 0; i < 4; i++)
-		for (int j = 0; j < 4; j++)
-			if (block[currentBlock][blockRotate][i][j]) {
-				y = blockY + i;
-				x = blockX + j;
+	for (int i = -1; i < 4; i++)
+		for (int j = 0; j < 4; j++){
+			y = blockY + i;
+			x = blockX + j;
+			if (i >= 0 && block[currentBlock][blockRotate][i][j]) {
 				if (y < 0 || x < 0 || y >= HEIGHT || x >= WIDTH) continue;
 				f[y][x] = 1;
+				penalty += y;
 				// 아래의 필드가 채워져있다면 점수 증가
 				if (y + 1 == HEIGHT || f[y + 1][x] == 1) touched++;
 			}
-	return touched * 10;
+
+			if(y < 0) continue;
+			/*if(!f[y][x]) {
+				penalty += PENALTY;
+			}
+			else{
+				if(y + 1 < HEIGHT && !f[y + 1][x]) {
+					penalty += -5 * PENALTY;
+					if(y + 2 < HEIGHT && !f[y + 2][x]) penalty += -5 * PENALTY;
+				}
+			}*/
+		}
+	return touched * 10 + flag * penalty;
 }
 
 int DeleteLine(char f[HEIGHT][WIDTH]) {
@@ -428,10 +450,10 @@ void DrawBlockWithFeatures(int y, int x, int blockID, int blockRotate) {
 	DrawRecommend(root->recBlockY, root->recBlockX, root->curBlockID, root->recBlockRotate);
 
 	// 그림자를 그린다.
-	DrawShadow(y, x, blockID, blockRotate);
+	if(!Recplay) DrawShadow(y, x, blockID, blockRotate);
 
 	// 블록을 그린다.
-	DrawBlock(y, x, blockID, blockRotate, ' ');
+	if(!Recplay) DrawBlock(y, x, blockID, blockRotate, ' ');
 	return;
 }
 
@@ -663,7 +685,7 @@ void recommend(Node* root){
 			for(int i = 0; i < HEIGHT; i++)
 				for(int k = 0; k < WIDTH; k++)
 					root->child[j]->recField[i][k] = root->recField[i][k];
-			score += AddBlockToField(root->child[j]->recField, root->curBlockID, rotate, y, x);
+			score += AddBlockToField(root->child[j]->recField, root->curBlockID, rotate, y, x, 1);
 			score += DeleteLine(root->child[j]->recField);
 
 			root->child[j]->level = root->level + 1;
@@ -679,7 +701,53 @@ void recommend(Node* root){
 				root->recBlockY = y;
 				root->recBlockX = x;
 				root->recBlockRotate = rotate;
+				}
+			free(root->child[j]);
+		}	
+	}
+	return;
+}
+
+void modified_recommend(Node* root) {
+	int y, x, score;
+	root->accumulatedScore = -1;
+	root->curBlockID = nextBlock[root->level];
+	root->recBlockY = -1;
+
+	root->child = (Node**) malloc(sizeof(Node*) * CHILDREN_MAX + 10); 
+	//현재블록과 다음 2개의 블록을 고려해서 모든 play 시퀀스를 나타낼 수 있는 tree를 구성하고, tree의 정보를 바탕으로 사용자가 좋은 score를 얻을 수 있는현재 블록의 위치를 계산하는 기능을 한다.
+	for(int rotate = 0; rotate < 4; rotate++){
+		for(int j = 0; j <= WIDTH; j++){
+			// 불가능한 경우인 경우 continue한다.
+			x = j - 2;
+			if(!CheckToMove(root->recField, root->curBlockID, rotate, 0, x)) continue;
+
+			root->child[j] = (Node*) malloc(sizeof(Node));
+			//블럭이 들어간 새로운 필드를 만든다.
+			score = y = 0;
+			while (CheckToMove(root->recField, root->curBlockID, rotate, y + 1, x)) y++;
+
+			// score를 갱신한다.
+			for(int i = 0; i < HEIGHT; i++)
+				for(int k = 0; k < WIDTH; k++)
+					root->child[j]->recField[i][k] = root->recField[i][k];
+			score += AddBlockToField(root->child[j]->recField, root->curBlockID, rotate, y, x, 1);
+			score += DeleteLine(root->child[j]->recField);
+
+			root->child[j]->level = root->level + 1;
+			//재귀적으로 점수를 구한다.
+			if(root->child[j]->level < BLOCK_NUM){
+				modified_recommend(root->child[j]);
+				score += root->child[j]->accumulatedScore;
 			}
+
+			// 점수의 최댓값을 구한다.
+			if(score > root->accumulatedScore || (score == root->accumulatedScore && (root->recBlockY == -1 || root->recBlockY < y))) {
+				root->accumulatedScore = score;
+				root->recBlockY = y;
+				root->recBlockX = x;
+				root->recBlockRotate = rotate;
+				}
 			free(root->child[j]);
 		}	
 	}
@@ -693,6 +761,8 @@ void DrawRecommend(int y, int x, int blockID, int blockRotate) {
 
 
 void recommendedPlay() {
+	Recplay = 1;
 	play();
+	Recplay = 0;
 	return;
 }

@@ -1,4 +1,11 @@
-3
+10
+1bin3 59960
+1bin2 55100
+1bin1 51640
+1bin3 41010
+1bin3 24500
 upgrage_alorithm´P 20660
 test1 3080
 1bin 100
+make 0
+make 0

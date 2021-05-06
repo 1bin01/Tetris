@@ -29,6 +29,7 @@
 #define NAMELEN 16
 
 #define CHILDREN_MAX 36
+#define PENALTY -5
 
 typedef struct _NODE {
 	char name[NAMELEN];
@@ -167,7 +168,7 @@ RecNode *recRoot;
 Node* root;
 NODE * head;
 int score_number;
-int check_recommend = 1;
+int Recplay;
 
 /***********************************************************
  *	테트리스의 모든  global 변수를 초기화 해준다.
@@ -258,7 +259,7 @@ void DrawField();
  *		  (int) 블럭의 X좌표
  *	return	: none
  ***********************************************************/
-int AddBlockToField(char f[HEIGHT][WIDTH],int currentBlock,int blockRotate, int blockY, int blockX);
+int AddBlockToField(char f[HEIGHT][WIDTH],int currentBlock,int blockRotate, int blockY, int blockX, int flag);
 
 /***********************************************************
  *	완전히 채워진 Line을 삭제하고 점수를 매겨준다.
@@ -379,8 +380,8 @@ void recommend(Node *root);
  *	return	: none
  ***********************************************************/
 void DrawRecommend(int y, int x, int blockID, int blockRotate);
+void modified_recommend(Node* root);
 
 void recommendedPlay();
-
 
 #endif
