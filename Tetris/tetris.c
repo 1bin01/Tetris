@@ -18,6 +18,7 @@ int main() {
 		switch (menu()) {
 		case MENU_PLAY: play(); break;
 		case MENU_RANK: rank(); break;
+		case MENU_REC_PLAY: recommendedPlay(); break;
 		case MENU_EXIT: exit = 1; break;
 		default: break;
 		}
@@ -48,8 +49,8 @@ void InitTetris() {
 
 	DrawOutline();
 	DrawField();
-	DrawBlockWithFeatures(blockY, blockX, nextBlock[0], blockRotate);
 	DrawNextBlock(nextBlock);
+	DrawBlockWithFeatures(blockY, blockX, nextBlock[0], blockRotate);
 	PrintScore(score);
 }
 
@@ -149,6 +150,18 @@ void PrintScore(int score) {
 
 void DrawNextBlock(int* nextBlock) {
 	int i, j;
+
+	// 블럭 위치를 추천
+	if(check_recommend){
+		if(root) free(root);
+		root = (Node*) malloc(sizeof(Node));
+		root->level = 0;
+		for(int i = 0; i < HEIGHT; i++)
+			for(int j = 0; j < WIDTH; j++)
+				root->recField[i][j] = field[i][j];
+		recommend(root);
+	}
+
 	for (i = 0; i < 4; i++) {
 		// 다음 블럭 그리기
 		move(4 + i, WIDTH + 13);
@@ -410,7 +423,10 @@ void DrawShadow(int y, int x, int blockID, int blockRotate) {
 
 void DrawBlockWithFeatures(int y, int x, int blockID, int blockRotate) {
 	// DrawBlock(), DrawShadow() 함수를 호출하는 함수로, 기존의 DrawBlock() 함수의 위치에 삽입하여  움직임이 갱신될 때마다 현재 블록과 그림자를 함께 그리도록 한다.
-	// user code
+	
+	// 추천 위치를 그려준다.
+	DrawRecommend(root->recBlockY, root->recBlockX, root->curBlockID, root->recBlockRotate);
+
 	// 그림자를 그린다.
 	DrawShadow(y, x, blockID, blockRotate);
 
@@ -624,11 +640,59 @@ void newRank(int score) {
 	return;
 }
 
+void recommend(Node* root){
+	int y, x, score;
+	root->accumulatedScore = -1;
+	root->curBlockID = nextBlock[root->level];
+	root->recBlockY = -1;
+
+	root->child = (Node**) malloc(sizeof(Node*) * CHILDREN_MAX + 10); 
+	//현재블록과 다음 2개의 블록을 고려해서 모든 play 시퀀스를 나타낼 수 있는 tree를 구성하고, tree의 정보를 바탕으로 사용자가 좋은 score를 얻을 수 있는현재 블록의 위치를 계산하는 기능을 한다.
+	for(int rotate = 0; rotate < 4; rotate++){
+		for(int j = 0; j <= WIDTH; j++){
+			// 불가능한 경우인 경우 continue한다.
+			x = j - 2;
+			if(!CheckToMove(root->recField, root->curBlockID, rotate, 0, x)) continue;
+
+			root->child[j] = (Node*) malloc(sizeof(Node));
+			//블럭이 들어간 새로운 필드를 만든다.
+			score = y = 0;
+			while (CheckToMove(root->recField, root->curBlockID, rotate, y + 1, x)) y++;
+
+			// score를 갱신한다.
+			for(int i = 0; i < HEIGHT; i++)
+				for(int k = 0; k < WIDTH; k++)
+					root->child[j]->recField[i][k] = root->recField[i][k];
+			score += AddBlockToField(root->child[j]->recField, root->curBlockID, rotate, y, x);
+			score += DeleteLine(root->child[j]->recField);
+
+			root->child[j]->level = root->level + 1;
+			//재귀적으로 점수를 구한다.
+			if(root->child[j]->level < BLOCK_NUM){
+				recommend(root->child[j]);
+				score += root->child[j]->accumulatedScore;
+			}
+
+			// 점수의 최댓값을 구한다.
+			if(score > root->accumulatedScore || (score == root->accumulatedScore && (root->recBlockY == -1 || root->recBlockY < y))) {
+				root->accumulatedScore = score;
+				root->recBlockY = y;
+				root->recBlockX = x;
+				root->recBlockRotate = rotate;
+			}
+			free(root->child[j]);
+		}	
+	}
+	return;
+}
+
 void DrawRecommend(int y, int x, int blockID, int blockRotate) {
-	// user code
+	DrawBlock(y, x, blockID, blockRotate, 'R');
+	return;
 }
 
 
 void recommendedPlay() {
-	// user code
+	play();
+	return;
 }

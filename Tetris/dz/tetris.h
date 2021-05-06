@@ -1,173 +1,229 @@
 #ifndef _TETRIS_H_
 #define _TETRIS_H_
 
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
 #include <ncurses.h>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
-#define WIDTH	10
-#define HEIGHT	22
-#define NOTHING	0
-#define QUIT	'q'
-#define NUM_OF_SHAPE	7
-#define NUM_OF_ROTATE	4
-#define BLOCK_HEIGHT	4
-#define BLOCK_WIDTH	4
-#define BLOCK_NUM	3
+#define WIDTH 10
+#define HEIGHT 22
+#define NOTHING 0
+#define QUIT 'q'
+#define NUM_OF_SHAPE 7
+#define NUM_OF_ROTATE 4
+#define BLOCK_HEIGHT 4
+#define BLOCK_WIDTH 4
+#define BLOCK_NUM 3
 
 // menu number
 #define MENU_PLAY '1'
-#define MENU_EXIT '4'
 #define MENU_RANK '2'
 #define MENU_REC_PLAY '3'
+#define MENU_EXIT '4'
+
 // 사용자 이름의 길이
 #define NAMELEN 16
 
 #define CHILDREN_MAX 36
 
-typedef struct _NODE {
-	char name[NAMELEN];
-	int score;
-	struct _NODE * link;
-} NODE;
+// typedef struct _RecNode {
+//     int lv, score;
+//     char (*f)[WIDTH];
+//     struct _RecNode *c[CHILDREN_MAX];
+// } RecNode;
 
-typedef struct _RecNode{
-	int lv,score;
-	char (*f)[WIDTH];
-	struct _RecNode *c[CHILDREN_MAX];
-} RecNode;
- 
- typedef struct _Node {
-	//must-have elements	
-	int accumulatedScore;
-	char recField[HEIGHT][WIDTH];
-	struct _Node **child;
-	//optional element
-	int curBlockID;
-	int recBlockX, recBlockY, recBlockRotate;
-	int level;
-	struct _Node *parent;
+typedef struct _Node {
+    int score;
+    char name[NAMELEN];
+    struct _Node *np;
 } Node;
+Node *Rank_Head;
+
+// 랭킹에 담긴 사람의 수
+int rank_cnt;
+
+typedef struct _RecNode {
+    //must-have elements
+    int level;
+    int accumulatedScore;
+    char recField[HEIGHT][WIDTH];
+    struct _RecNode **child;
+    int child_cnt;
+    //optional element
+    int curBlockID;
+    int recBlockX, recBlockY, recBlockRotate;
+    struct _RecNode *parent;
+} RecNode;
+RecNode *parent;
+
+RecNode *Max_ptr;
+int max_ = -1;
+RecNode *Prev_Rec = NULL;
+
+int is_RecMode = 0;
 
 /* [blockShapeID][# of rotate][][]*/
-const char block[NUM_OF_SHAPE][NUM_OF_ROTATE][BLOCK_HEIGHT][BLOCK_WIDTH] ={
-	{/*[0][][][]					▩▩▩▩*/
-		{/*[][0][][]*/
-			{0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}
-		},
-		{/*[][1][][]*/
-			{0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}			
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}			
-		},
-		{/*[][3][][]*/
-			{0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}
-		}
-	},
-	{/*[1][][][];					  ▩▩▩*/
-		{/*[][0][][]				      ▩*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 1}, {0, 0, 0, 1}
-		},
-		{/*[][1][][]*/
-			{0, 0, 0, 0}, {0, 0 ,1, 1}, {0, 0, 1, 0}, {0, 0, 1, 0}
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {0, 1, 0, 0}, {0, 1, 1, 1}, {0, 0, 0, 0}
-		},
-		{/*[][3][][]*/
-			{0, 0, 0, 0}, {0, 0, 1, 0}, {0, 0, 1, 0}, {0, 1, 1, 0}
-		}
-	},
-	{/*[2][][][];					  ▩▩▩*/
-		{/*[][0][][]				  ▩*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 1}, {0, 1, 0, 0}
-		},
-		{/*[][1][][]*/
-			{0, 0, 0, 0}, {0, 0, 1, 0}, {0, 0, 1, 0}, {0, 0, 1, 1}
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {0, 0, 0, 1}, {0, 1, 1, 1}, {0, 0, 0, 0}
-		},
-		{/*[][3][][]*/
-			{0, 0, 0, 0}, {0, 1, 1, 0}, {0, 0, 1, 0}, {0, 0, 1, 0}
-		}
-	},
-	{/*[3][][][];					  ▩▩▩*/
-		{/*[][0][][]				    ▩*/
-			{0, 0, 0, 0}, {0, 1, 0, 0}, {1, 1, 1, 0}, {0, 0, 0, 0}
-		},
-		{/*[][1][][]*/
-			{0, 0, 0, 0}, {0, 1, 0, 0}, {1, 1, 0, 0}, {0, 1, 0, 0}
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {1, 1, 1, 0}, {0, 1, 0, 0}
-		},
-		{/*[][3][][]*/
-			{0, 0, 0, 0}, {0, 1, 0, 0}, {0, 1, 1, 0}, {0, 1, 0, 0}
-		}
-	},
-	{/*[4][][][];					  ▩▩*/
-		{/*[][0][][]				  ▩▩*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 0}, {0, 1, 1, 0}
-		},
-		{/*[][1][][]*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 0}, {0, 1, 1, 0}
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 0}, {0, 1, 1, 0}
-		},
-		{/*[][3][][]*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 0}, {0, 1, 1, 0}
-		}
-	},
-	{/*[5][][][];					  ▩▩*/
-		{/*[][0][][]				▩▩*/
-			{0, 0, 0, 0}, {0, 0, 1, 1}, {0, 1, 1, 0}, {0, 0, 0, 0}
-		},
-		{/*[][1][][]*/
-			{0, 0, 0, 0}, {0, 1, 0, 0}, {0, 1, 1, 0}, {0, 0, 1, 0}			
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {0, 0, 1, 1}, {0, 1, 1, 0}, {0, 0, 0, 0}			
-		},
-		{/*[][3][][]*/
-			{0, 0, 0, 0}, {0, 1, 0, 0}, {0, 1, 1, 0}, {0, 0, 1, 0}			
-		}
-	},
-	{/*[6][][][];					▩▩*/
-		{/*[][0][][]				  ▩▩*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 0}, {0, 0, 1, 1}
-		},
-		{/*[][1][][]*/
-			{0, 0, 0, 0}, {0, 0, 1, 0}, {0, 1, 1, 0}, {0, 1, 0, 0}
-		},
-		{/*[][2][][]*/
-			{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 1, 0}, {0, 0, 1, 1}
-		},
-		{/*[][3][][]*/
-			{0, 0, 0, 0}, {0, 0, 1, 0}, {0, 1, 1, 0}, {0, 1, 0, 0}
-		}
-	}
-};
+const char block[NUM_OF_SHAPE][NUM_OF_ROTATE][BLOCK_HEIGHT][BLOCK_WIDTH] = {
+    { /*[0][][][]					▩▩▩▩*/
+     {/*[][0][][]*/
+      {0, 0, 0, 0},
+      {1, 1, 1, 1},
+      {0, 0, 0, 0},
+      {0, 0, 0, 0}},
+     {/*[][1][][]*/
+      {0, 1, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 0, 0}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {1, 1, 1, 1},
+      {0, 0, 0, 0},
+      {0, 0, 0, 0}},
+     {/*[][3][][]*/
+      {0, 1, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 0, 0}}},
+    { /*[1][][][];					  ▩▩▩*/
+     {/*[][0][][]				      ▩*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 1},
+      {0, 0, 0, 1}},
+     {/*[][1][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 1},
+      {0, 0, 1, 0},
+      {0, 0, 1, 0}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 1, 1},
+      {0, 0, 0, 0}},
+     {/*[][3][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 0},
+      {0, 0, 1, 0},
+      {0, 1, 1, 0}}},
+    { /*[2][][][];					  ▩▩▩*/
+     {/*[][0][][]				  ▩*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 1},
+      {0, 1, 0, 0}},
+     {/*[][1][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 0},
+      {0, 0, 1, 0},
+      {0, 0, 1, 1}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 1},
+      {0, 1, 1, 1},
+      {0, 0, 0, 0}},
+     {/*[][3][][]*/
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 0, 1, 0},
+      {0, 0, 1, 0}}},
+    { /*[3][][][];					  ▩▩▩*/
+     {/*[][0][][]				    ▩*/
+      {0, 0, 0, 0},
+      {0, 1, 0, 0},
+      {1, 1, 1, 0},
+      {0, 0, 0, 0}},
+     {/*[][1][][]*/
+      {0, 0, 0, 0},
+      {0, 1, 0, 0},
+      {1, 1, 0, 0},
+      {0, 1, 0, 0}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {1, 1, 1, 0},
+      {0, 1, 0, 0}},
+     {/*[][3][][]*/
+      {0, 0, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 1, 0},
+      {0, 1, 0, 0}}},
+    { /*[4][][][];					  ▩▩*/
+     {/*[][0][][]				  ▩▩*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 1, 1, 0}},
+     {/*[][1][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 1, 1, 0}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 1, 1, 0}},
+     {/*[][3][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 1, 1, 0}}},
+    { /*[5][][][];					  ▩▩*/
+     {/*[][0][][]				▩▩*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 1},
+      {0, 1, 1, 0},
+      {0, 0, 0, 0}},
+     {/*[][1][][]*/
+      {0, 0, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 1, 0},
+      {0, 0, 1, 0}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 1},
+      {0, 1, 1, 0},
+      {0, 0, 0, 0}},
+     {/*[][3][][]*/
+      {0, 0, 0, 0},
+      {0, 1, 0, 0},
+      {0, 1, 1, 0},
+      {0, 0, 1, 0}}},
+    { /*[6][][][];					▩▩*/
+     {/*[][0][][]				  ▩▩*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 0, 1, 1}},
+     {/*[][1][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 0},
+      {0, 1, 1, 0},
+      {0, 1, 0, 0}},
+     {/*[][2][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 0, 0},
+      {0, 1, 1, 0},
+      {0, 0, 1, 1}},
+     {/*[][3][][]*/
+      {0, 0, 0, 0},
+      {0, 0, 1, 0},
+      {0, 1, 1, 0},
+      {0, 1, 0, 0}}}};
 
-char field[HEIGHT][WIDTH];	/* 테트리스의 메인 게임 화면 */
-int nextBlock[BLOCK_NUM];	/* 현재 블럭의 ID와 다음 블럭의 ID들을 저장; [0]: 현재 블럭; [1]: 다음 블럭 */
-int blockRotate,blockY,blockX;	/* 현재 블럭의 회전, 블럭의 Y 좌표, 블럭의 X 좌표*/
-int score;			/* 점수가 저장*/
-int gameOver=0;			/* 게임이 종료되면 1로 setting된다.*/
+char field[HEIGHT][WIDTH];       /* 테트리스의 메인 게임 화면 */
+int nextBlock[BLOCK_NUM];        /* 현재 블럭의 ID와 다음 블럭의 ID들을 저장; [0]: 현재 블럭; [1]: 다음 블럭 */
+int blockRotate, blockY, blockX; /* 현재 블럭의 회전, 블럭의 Y 좌표, 블럭의 X 좌표*/
+int score;                       /* 점수가 저장*/
+int gameOver = 0;                /* 게임이 종료되면 1로 setting된다.*/
 int timed_out;
-int recommendR,recommendY,recommendX; // 추천 블럭 배치 정보. 차례대로 회전, Y 좌표, X 좌표
+int recommendR, recommendY, recommendX;  // 추천 블럭 배치 정보. 차례대로 회전, Y 좌표, X 좌표
 RecNode *recRoot;
-Node* root;
-NODE * head;
-int score_number;
-int check_recommend = 1;
 
 /***********************************************************
  *	테트리스의 모든  global 변수를 초기화 해준다.
@@ -228,7 +284,7 @@ void BlockDown(int sig);
  *	return	: (int) 입력에 대한 블럭 움직임이 가능하면 1
  *		  가능하지 않으면 0을 return 한다.
  ***********************************************************/
-int CheckToMove(char f[HEIGHT][WIDTH],int currentBlock,int blockRotate, int blockY, int blockX);
+int CheckToMove(char f[HEIGHT][WIDTH], int currentBlock, int blockRotate, int blockY, int blockX);
 
 /***********************************************************
  *	테트리스에서 command에 의해 바뀐 부분만 다시 그려준다.
@@ -240,7 +296,7 @@ int CheckToMove(char f[HEIGHT][WIDTH],int currentBlock,int blockRotate, int bloc
  *		  (int) 블럭의 X좌표
  *	return	: none
  ***********************************************************/
-void DrawChange(char f[HEIGHT][WIDTH],int command,int currentBlock,int blockRotate, int blockY, int blockX);
+void DrawChange(char f[HEIGHT][WIDTH], int command, int currentBlock, int blockRotate, int blockY, int blockX);
 
 /***********************************************************
  *	테트리스의 블럭이 쌓이는 field를 그려준다.
@@ -258,7 +314,7 @@ void DrawField();
  *		  (int) 블럭의 X좌표
  *	return	: none
  ***********************************************************/
-int AddBlockToField(char f[HEIGHT][WIDTH],int currentBlock,int blockRotate, int blockY, int blockX);
+int AddBlockToField(char f[HEIGHT][WIDTH], int currentBlock, int blockRotate, int blockY, int blockX);
 
 /***********************************************************
  *	완전히 채워진 Line을 삭제하고 점수를 매겨준다.
@@ -297,7 +353,7 @@ void PrintScore(int score);
  *		  (int) 박스의 넓이
  *	return	: none
  ***********************************************************/
-void DrawBox(int y,int x, int height, int width);
+void DrawBox(int y, int x, int height, int width);
 
 /***********************************************************
  *	해당 좌표(y,x)에 원하는 모양의 블록을 그린다.
@@ -308,7 +364,11 @@ void DrawBox(int y,int x, int height, int width);
  *		  (char) 블록을 그릴 패턴 모양
  *	return	: none
  ***********************************************************/
-void DrawBlock(int y, int x, int blockID,int blockRotate,char tile);
+void DrawBlock(int y, int x, int blockID, int blockRotate, char tile);
+
+/*
+*/
+void DrawBlockWithFeatures(int y, int x, int blockID, int blockRotate);
 
 /***********************************************************
  *	블록이 떨어질 위치를 미리 보여준다.
@@ -318,16 +378,13 @@ void DrawBlock(int y, int x, int blockID,int blockRotate,char tile);
  *		  (int) 블록의 회전 횟수
  *	return	: none
  ***********************************************************/
-void DrawShadow(int y, int x, int blockID,int blockRotate);
+void DrawShadow(int y, int x, int blockID, int blockRotate);
 
 /***********************************************************
  *	테트리스 게임을 시작한다.
  *	input	: none
  *	return	: none
  ***********************************************************/
-
-void DrawBlockWithFeatures(int y, int x, int blockID, int blockRotate);
-
 void play();
 
 /***********************************************************
@@ -370,17 +427,21 @@ void newRank(int score);
  *	input	: (RecNode*) 추천 트리의 루트
  *	return	: (int) 추천 블럭 배치를 따를 때 얻어지는 예상 스코어
  ***********************************************************/
-//int recommend(RecNode *root);
-void recommend(Node *root);
+int recommend(RecNode *root);
 
 /***********************************************************
  *	추천 기능에 따라 블럭을 배치하여 진행하는 게임을 시작한다.
  *	input	: none
  *	return	: none
  ***********************************************************/
-void DrawRecommend(int y, int x, int blockID, int blockRotate);
-
 void recommendedPlay();
 
+void DeleteRecommend(int y, int x, int blockID, int blockRotate);
+
+void DrawRecommend(int y, int x, int blockID, int blockRotate);
+
+void FieldWithRecBlock(char ret[HEIGHT][WIDTH], char f[HEIGHT][WIDTH], int blockY, int blockX, int blockID, int blockRotateID);
+
+int CalTouched(char f[HEIGHT][WIDTH], int y, int x, int currentBlock, int blockRotate);
 
 #endif

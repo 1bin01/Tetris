@@ -1,2 +1,4 @@
-1
+3
+upgrage_alorithm´P 20660
+test1 3080
 1bin 100
